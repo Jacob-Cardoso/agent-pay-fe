@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
+import { signIn } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -43,24 +43,26 @@ export function SignupForm() {
     }
 
     try {
-      // TODO: Implement actual signup logic and Method API integration
-      // For now, simulate signup
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-
-      // Simulate Method API account creation
-      const methodResponse = await createMethodAccount(formData.email, formData.firstName, formData.lastName)
-
-      // Store auth state
-      localStorage.setItem("isAuthenticated", "true")
-      localStorage.setItem("userEmail", formData.email)
-      localStorage.setItem("methodAccountId", methodResponse.accountId)
-
-      toast({
-        title: "Account created!",
-        description: "Your AgentPay account has been created successfully.",
+      // Create account using credentials provider
+      const result = await signIn("credentials", {
+        email: formData.email,
+        password: formData.password,
+        redirect: false,
       })
 
-      router.push("/dashboard")
+      if (result?.error) {
+        toast({
+          title: "Error", 
+          description: "Failed to create account. Please try again.",
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Account created!",
+          description: "Your AgentPay account has been created successfully.",
+        })
+        router.push("/dashboard")
+      }
     } catch (error) {
       toast({
         title: "Error",
@@ -72,17 +74,16 @@ export function SignupForm() {
     }
   }
 
-  // Simulate Method API account creation
-  const createMethodAccount = async (email: string, firstName: string, lastName: string) => {
-    // This would be a real API call to Method in production
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          accountId: `method_${Math.random().toString(36).substr(2, 9)}`,
-          status: "active",
-        })
-      }, 500)
-    })
+  const handleGoogleSignIn = async () => {
+    try {
+      await signIn("google", { callbackUrl: "/dashboard" })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to sign in with Google. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   return (
@@ -199,7 +200,12 @@ export function SignupForm() {
         </div>
       </div>
 
-      <Button type="button" variant="outline" className="w-full bg-transparent border-border">
+      <Button 
+        type="button" 
+        variant="outline" 
+        className="w-full bg-transparent border-border"
+        onClick={handleGoogleSignIn}
+      >
         <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
           <path
             d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"

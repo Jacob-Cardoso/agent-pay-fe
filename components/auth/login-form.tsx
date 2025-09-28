@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
+import { signIn } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -21,28 +21,45 @@ export function LoginForm() {
     setIsLoading(true)
 
     try {
-      // TODO: Implement actual authentication logic
-      // For now, simulate login
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // Store auth state (in a real app, this would be handled by your auth system)
-      localStorage.setItem("isAuthenticated", "true")
-      localStorage.setItem("userEmail", email)
-
-      toast({
-        title: "Welcome back!",
-        description: "You have been successfully signed in.",
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
       })
 
-      router.push("/dashboard")
+      if (result?.error) {
+        toast({
+          title: "Error",
+          description: "Invalid email or password. Please try again.",
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Welcome back!",
+          description: "You have been successfully signed in.",
+        })
+        router.push("/dashboard")
+      }
     } catch (error) {
       toast({
         title: "Error",
-        description: "Invalid email or password. Please try again.",
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive",
       })
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleGoogleSignIn = async () => {
+    try {
+      await signIn("google", { callbackUrl: "/dashboard" })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to sign in with Google. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -105,7 +122,12 @@ export function LoginForm() {
         </div>
       </div>
 
-      <Button type="button" variant="outline" className="w-full bg-transparent border-border">
+      <Button 
+        type="button" 
+        variant="outline" 
+        className="w-full bg-transparent border-border"
+        onClick={handleGoogleSignIn}
+      >
         <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
           <path
             d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
