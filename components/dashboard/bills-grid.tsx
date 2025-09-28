@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -111,7 +111,12 @@ const getDaysUntilDue = (dueDate: string) => {
 export function BillsGrid() {
   const [bills, setBills] = useState<Bill[]>(mockBills)
   const [isLoading, setIsLoading] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const { toast } = useToast()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handlePayBill = async (bill: Bill) => {
     setIsLoading(true)
@@ -231,22 +236,28 @@ export function BillsGrid() {
                   <span className="text-sm text-muted-foreground">Due Date</span>
                   <div className="text-right">
                     <div className="text-sm font-medium">
-                      {new Date(bill.dueDate).toLocaleDateString()}
+                      {mounted ? new Date(bill.dueDate).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                      }) : bill.dueDate}
                     </div>
-                    <div className={`text-xs ${
-                      daysUntilDue < 0 
-                        ? "text-red-600" 
-                        : daysUntilDue <= 3 
-                        ? "text-yellow-600" 
-                        : "text-muted-foreground"
-                    }`}>
-                      {daysUntilDue < 0 
-                        ? `${Math.abs(daysUntilDue)} days overdue`
-                        : daysUntilDue === 0
-                        ? "Due today"
-                        : `${daysUntilDue} days remaining`
-                      }
-                    </div>
+                    {mounted && (
+                      <div className={`text-xs ${
+                        daysUntilDue < 0 
+                          ? "text-red-600" 
+                          : daysUntilDue <= 3 
+                          ? "text-yellow-600" 
+                          : "text-muted-foreground"
+                      }`}>
+                        {daysUntilDue < 0 
+                          ? `${Math.abs(daysUntilDue)} days overdue`
+                          : daysUntilDue === 0
+                          ? "Due today"
+                          : `${daysUntilDue} days remaining`
+                        }
+                      </div>
+                    )}
                   </div>
                 </div>
 
