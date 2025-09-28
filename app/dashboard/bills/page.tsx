@@ -1,3 +1,7 @@
+import { AuthGuard } from "@/components/auth/auth-guard"
+import { DashboardLayout } from "@/components/dashboard/dashboard-layout"
+import { BillsGrid } from "@/components/dashboard/bills-grid"
+
 export default function BillsPage() {
   return (
     <AuthGuard>
