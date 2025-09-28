@@ -10,11 +10,51 @@ import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 
 export function LoginForm() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  })
   const [isLoading, setIsLoading] = useState(false)
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+  const [errors, setErrors] = useState<{[key: string]: string}>({})
   const router = useRouter()
   const { toast } = useToast()
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData({
+      ...formData,
+      [name]: value,
+    })
+    
+    // Clear errors when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: ""
+      }))
+    }
+  }
+
+  const validateForm = () => {
+    const newErrors: {[key: string]: string} = {}
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!formData.email) {
+      newErrors.email = "Email is required"
+    } else if (!emailRegex.test(formData.email)) {
+      newErrors.email = "Please enter a valid email address"
+    }
+
+    // Password validation
+    if (!formData.password) {
+      newErrors.password = "Password is required"
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -22,28 +62,29 @@ export function LoginForm() {
 
     try {
       const result = await signIn("credentials", {
-        email,
-        password,
+        email: formData.email,
+        password: formData.password,
         redirect: false,
       })
 
       if (result?.error) {
         toast({
           title: "Error",
-          description: "Invalid email or password. Please try again.",
+          description: "Invalid email or password",
           variant: "destructive",
         })
       } else {
         toast({
-          title: "Welcome back!",
-          description: "You have been successfully signed in.",
+          title: "Success",
+          description: "Logged in successfully!",
         })
         router.push("/dashboard")
       }
     } catch (error) {
+      console.error('Login error:', error);
       toast({
         title: "Error",
-        description: "An unexpected error occurred. Please try again.",
+        description: "Something went wrong. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -52,6 +93,7 @@ export function LoginForm() {
   }
 
   const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true)
     try {
       await signIn("google", { callbackUrl: "/dashboard" })
     } catch (error) {
@@ -60,73 +102,97 @@ export function LoginForm() {
         description: "Failed to sign in with Google. Please try again.",
         variant: "destructive",
       })
+    } finally {
+      setIsGoogleLoading(false)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="email" className="text-card-foreground">
-          Email
-        </Label>
-        <Input
-          id="email"
-          type="email"
-          placeholder="Enter your email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          className="bg-background border-input"
-        />
+    <div className="space-y-4">
+      <div className="text-center space-y-2">
+        <h2 className="text-2xl font-bold text-card-foreground">Welcome to AgentPay</h2>
+        <p className="text-muted-foreground">Sign in to your account to continue</p>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="password" className="text-card-foreground">
-          Password
-        </Label>
-        <Input
-          id="password"
-          type="password"
-          placeholder="Enter your password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          className="bg-background border-input"
-        />
-      </div>
-
-      <div className="flex items-center justify-between text-sm">
-        <label className="flex items-center space-x-2 text-muted-foreground">
-          <input type="checkbox" className="rounded border-input" />
-          <span>Remember me</span>
-        </label>
-        <a href="#" className="text-primary hover:text-primary/80">
-          Forgot password?
-        </a>
-      </div>
-
-      <Button
-        type="submit"
-        className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-        disabled={isLoading}
-      >
-        {isLoading ? "Signing in..." : "Sign in"}
-      </Button>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="email" className={errors.email ? "text-destructive" : ""}>
+            Email
+          </Label>
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            placeholder="Enter your email"
+            value={formData.email}
+            onChange={handleChange}
+            className={errors.email ? "border-destructive focus-visible:border-destructive" : ""}
+            required
+          />
+          {errors.email && (
+            <p className="text-sm text-destructive">{errors.email}</p>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="password" className={errors.password ? "text-destructive" : ""}>
+            Password
+          </Label>
+          <Input
+            id="password"
+            name="password"
+            type="password"
+            placeholder="Enter your password"
+            value={formData.password}
+            onChange={handleChange}
+            className={errors.password ? "border-destructive focus-visible:border-destructive" : ""}
+            required
+          />
+          {errors.password && (
+            <p className="text-sm text-destructive">{errors.password}</p>
+          )}
+        </div>
+        <Button 
+          type="submit" 
+          className="w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          disabled={isLoading}
+        >
+          {isLoading && (
+            <svg className="mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24">
+              <circle 
+                className="opacity-25" 
+                cx="12" 
+                cy="12" 
+                r="10" 
+                stroke="currentColor" 
+                strokeWidth="4"
+                fill="none"
+              />
+              <path 
+                className="opacity-75" 
+                fill="currentColor" 
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+          )}
+          {isLoading ? "Signing in..." : "Sign In"}
+        </Button>
+      </form>
 
       <div className="relative">
         <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t border-border" />
+          <span className="w-full border-t" />
         </div>
         <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+          <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
         </div>
       </div>
 
       <Button 
         type="button" 
-        variant="outline" 
-        className="w-full bg-transparent border-border"
+        variant="outline"
+        className="w-full"
         onClick={handleGoogleSignIn}
+        disabled={isGoogleLoading}
       >
         <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
           <path
@@ -146,8 +212,12 @@ export function LoginForm() {
             fill="#EA4335"
           />
         </svg>
-        Continue with Google
+        {isGoogleLoading ? "Signing in with Google..." : "Continue with Google"}
       </Button>
-    </form>
+      
+      <div className="text-center text-sm text-muted-foreground">
+        <p>New to AgentPay? <a href="/signup" className="text-primary hover:text-primary/80">Create an account</a></p>
+      </div>
+    </div>
   )
 }

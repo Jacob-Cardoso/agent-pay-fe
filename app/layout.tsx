@@ -5,6 +5,7 @@ import { GeistMono } from "geist/font/mono"
 import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
 import { SessionProvider } from "@/components/providers/session-provider"
+import { Toaster } from "@/components/ui/toaster"
 import { getServerAuthSession } from "@/lib/auth"
 import "./globals.css"
 
@@ -27,6 +28,7 @@ export default async function RootLayout({
         <SessionProvider session={session}>
           <Suspense fallback={null}>{children}</Suspense>
         </SessionProvider>
+        <Toaster />
         <Analytics />
       </body>
     </html>

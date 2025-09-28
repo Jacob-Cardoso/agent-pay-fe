@@ -6,7 +6,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { getCurrentUser, logout } from "@/lib/auth"
+import { signOut, useSession } from "next-auth/react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -17,7 +17,7 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const pathname = usePathname()
-  const user = getCurrentUser()
+  const { data: session } = useSession()
 
   const navigation = [
     {
@@ -168,18 +168,17 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <div className="flex items-center space-x-3">
               <Avatar>
                 <AvatarFallback className="bg-primary text-primary-foreground">
-                  {user?.firstName?.[0]}
-                  {user?.lastName?.[0]}
+                  {session?.user?.name?.[0] || session?.user?.email?.[0] || 'U'}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-card-foreground truncate">
-                  {user?.firstName} {user?.lastName}
+                  {session?.user?.name || 'User'}
                 </p>
-                <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                <p className="text-xs text-muted-foreground truncate">{session?.user?.email}</p>
               </div>
               <ThemeToggle />
-              <Button variant="ghost" size="sm" onClick={logout}>
+              <Button variant="ghost" size="sm" onClick={() => signOut({ callbackUrl: '/' })}>
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
@@ -207,8 +206,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <ThemeToggle />
           <Avatar>
             <AvatarFallback className="bg-primary text-primary-foreground">
-              {user?.firstName?.[0]}
-              {user?.lastName?.[0]}
+              {session?.user?.name?.[0] || session?.user?.email?.[0] || 'U'}
             </AvatarFallback>
           </Avatar>
         </div>

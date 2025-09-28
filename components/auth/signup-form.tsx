@@ -11,39 +11,113 @@ import { useToast } from "@/hooks/use-toast"
 
 export function SignupForm() {
   const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
     email: "",
     password: "",
     confirmPassword: "",
+    phoneNumber: "",
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+  const [errors, setErrors] = useState<{[key: string]: string}>({})
   const router = useRouter()
   const { toast } = useToast()
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: value,
     })
+    
+    // Clear errors when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: ""
+      }))
+    }
+  }
+
+  const validateForm = () => {
+    const newErrors: {[key: string]: string} = {}
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!formData.email) {
+      newErrors.email = "Email is required"
+    } else if (!emailRegex.test(formData.email)) {
+      newErrors.email = "Please enter a valid email address"
+    }
+
+    // Phone validation
+    if (!formData.phoneNumber) {
+      newErrors.phoneNumber = "Phone number is required"
+    } else if (formData.phoneNumber.replace(/\D/g, '').length < 10) {
+      newErrors.phoneNumber = "Please enter a valid phone number (at least 10 digits)"
+    }
+
+            // Password validation
+            if (!formData.password) {
+              newErrors.password = "Password is required"
+            } else if (formData.password.length < 8) {
+              newErrors.password = "Password must be at least 8 characters long"
+            } else if (formData.password.length > 72) {
+              newErrors.password = "Password must be 72 characters or less"
+            }
+
+    // Confirm password validation
+    if (!formData.confirmPassword) {
+      newErrors.confirmPassword = "Please confirm your password"
+    } else if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = "Passwords don't match"
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
-
-    if (formData.password !== formData.confirmPassword) {
+    
+    // Clear previous errors
+    setErrors({})
+    
+    // Validate form
+    if (!validateForm()) {
       toast({
-        title: "Error",
-        description: "Passwords do not match.",
+        title: "Validation Error",
+        description: "Please fix the errors below and try again.",
         variant: "destructive",
       })
-      setIsLoading(false)
       return
     }
 
+    setIsLoading(true)
+
     try {
-      // Create account using credentials provider
+      // Register user with our backend
+      const API_BASE_URL = process.env.NEXT_PUBLIC_FASTAPI_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          phone_number: formData.phoneNumber,
+          full_name: formData.email.split('@')[0], // Use email prefix as default name
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Registration failed' }));
+        throw new Error(errorData.detail || 'Registration failed');
+      }
+
+      const authData = await response.json();
+
+      // Automatically sign in after successful registration
       const result = await signIn("credentials", {
         email: formData.email,
         password: formData.password,
@@ -52,21 +126,22 @@ export function SignupForm() {
 
       if (result?.error) {
         toast({
-          title: "Error", 
-          description: "Failed to create account. Please try again.",
-          variant: "destructive",
+          title: "Account Created",
+          description: "Account created successfully! Please sign in.",
         })
+        router.push("/login")
       } else {
         toast({
-          title: "Account created!",
-          description: "Your AgentPay account has been created successfully.",
+          title: "Success",
+          description: "Account created and signed in successfully!",
         })
         router.push("/dashboard")
       }
     } catch (error) {
+      console.error('Registration error:', error);
       toast({
         title: "Error",
-        description: "Failed to create account. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to create account. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -75,6 +150,7 @@ export function SignupForm() {
   }
 
   const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true)
     try {
       await signIn("google", { callbackUrl: "/dashboard" })
     } catch (error) {
@@ -83,128 +159,133 @@ export function SignupForm() {
         description: "Failed to sign in with Google. Please try again.",
         variant: "destructive",
       })
+    } finally {
+      setIsGoogleLoading(false)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+    <div className="space-y-4">
+      <div className="text-center space-y-2">
+        <h2 className="text-2xl font-bold text-card-foreground">Join AgentPay</h2>
+        <p className="text-muted-foreground">Create your account to get started</p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="firstName" className="text-card-foreground">
-            First Name
+          <Label htmlFor="email" className={errors.email ? "text-destructive" : ""}>
+            Email
           </Label>
           <Input
-            id="firstName"
-            name="firstName"
-            type="text"
-            placeholder="John"
-            value={formData.firstName}
+            id="email"
+            name="email"
+            type="email"
+            placeholder="Enter your email"
+            value={formData.email}
             onChange={handleChange}
+            className={errors.email ? "border-destructive focus-visible:border-destructive" : ""}
             required
-            className="bg-background border-input"
           />
+          {errors.email && (
+            <p className="text-sm text-destructive">{errors.email}</p>
+          )}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="lastName" className="text-card-foreground">
-            Last Name
+          <Label htmlFor="phoneNumber" className={errors.phoneNumber ? "text-destructive" : ""}>
+            Phone Number
           </Label>
           <Input
-            id="lastName"
-            name="lastName"
-            type="text"
-            placeholder="Doe"
-            value={formData.lastName}
+            id="phoneNumber"
+            name="phoneNumber"
+            type="tel"
+            placeholder="Enter your phone number"
+            value={formData.phoneNumber}
             onChange={handleChange}
+            className={errors.phoneNumber ? "border-destructive focus-visible:border-destructive" : ""}
             required
-            className="bg-background border-input"
           />
+          {errors.phoneNumber && (
+            <p className="text-sm text-destructive">{errors.phoneNumber}</p>
+          )}
         </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="email" className="text-card-foreground">
-          Email
-        </Label>
-        <Input
-          id="email"
-          name="email"
-          type="email"
-          placeholder="john@example.com"
-          value={formData.email}
-          onChange={handleChange}
-          required
-          className="bg-background border-input"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="password" className="text-card-foreground">
-          Password
-        </Label>
-        <Input
-          id="password"
-          name="password"
-          type="password"
-          placeholder="Create a strong password"
-          value={formData.password}
-          onChange={handleChange}
-          required
-          className="bg-background border-input"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="confirmPassword" className="text-card-foreground">
-          Confirm Password
-        </Label>
-        <Input
-          id="confirmPassword"
-          name="confirmPassword"
-          type="password"
-          placeholder="Confirm your password"
-          value={formData.confirmPassword}
-          onChange={handleChange}
-          required
-          className="bg-background border-input"
-        />
-      </div>
-
-      <div className="flex items-start space-x-2 text-sm">
-        <input type="checkbox" required className="mt-1 rounded border-input" />
-        <span className="text-muted-foreground">
-          I agree to the{" "}
-          <a href="/terms" className="text-primary hover:text-primary/80">
-            Terms of Service
-          </a>{" "}
-          and{" "}
-          <a href="/privacy" className="text-primary hover:text-primary/80">
-            Privacy Policy
-          </a>
-        </span>
-      </div>
-
-      <Button
-        type="submit"
-        className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-        disabled={isLoading}
-      >
-        {isLoading ? "Creating account..." : "Create account"}
-      </Button>
+        <div className="space-y-2">
+          <Label htmlFor="password" className={errors.password ? "text-destructive" : ""}>
+            Password
+          </Label>
+          <Input
+            id="password"
+            name="password"
+            type="password"
+                    placeholder="Create a password (8-72 characters)"
+            value={formData.password}
+            onChange={handleChange}
+            className={errors.password ? "border-destructive focus-visible:border-destructive" : ""}
+            required
+          />
+          {errors.password && (
+            <p className="text-sm text-destructive">{errors.password}</p>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="confirmPassword" className={errors.confirmPassword ? "text-destructive" : ""}>
+            Confirm Password
+          </Label>
+          <Input
+            id="confirmPassword"
+            name="confirmPassword"
+            type="password"
+            placeholder="Confirm your password"
+            value={formData.confirmPassword}
+            onChange={handleChange}
+            className={errors.confirmPassword ? "border-destructive focus-visible:border-destructive" : ""}
+            required
+          />
+          {errors.confirmPassword && (
+            <p className="text-sm text-destructive">{errors.confirmPassword}</p>
+          )}
+        </div>
+        <Button 
+          type="submit" 
+          className="w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          disabled={isLoading}
+        >
+          {isLoading && (
+            <svg className="mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24">
+              <circle 
+                className="opacity-25" 
+                cx="12" 
+                cy="12" 
+                r="10" 
+                stroke="currentColor" 
+                strokeWidth="4"
+                fill="none"
+              />
+              <path 
+                className="opacity-75" 
+                fill="currentColor" 
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+          )}
+          {isLoading ? "Creating account..." : "Create Account"}
+        </Button>
+      </form>
 
       <div className="relative">
         <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t border-border" />
+          <span className="w-full border-t" />
         </div>
         <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+          <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
         </div>
       </div>
 
       <Button 
         type="button" 
-        variant="outline" 
-        className="w-full bg-transparent border-border"
+        variant="outline"
+        className="w-full"
         onClick={handleGoogleSignIn}
+        disabled={isGoogleLoading}
       >
         <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
           <path
@@ -224,8 +305,12 @@ export function SignupForm() {
             fill="#EA4335"
           />
         </svg>
-        Continue with Google
+        {isGoogleLoading ? "Creating account with Google..." : "Continue with Google"}
       </Button>
-    </form>
+      
+      <div className="text-center text-sm text-muted-foreground">
+        <p>Already have an account? <a href="/login" className="text-primary hover:text-primary/80">Sign in</a></p>
+      </div>
+    </div>
   )
 }

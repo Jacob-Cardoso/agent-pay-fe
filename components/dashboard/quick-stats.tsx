@@ -1,22 +1,66 @@
 "use client"
 
+import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { mockCreditCards, mockPayments } from "@/lib/mock-data"
+import { cardsAPI, type CreditCard } from "@/lib/api/cards"
+import { paymentsAPI, type PaymentStats } from "@/lib/api/payments"
+import { Loader2 } from "lucide-react"
 
 export function QuickStats() {
-  const totalBalance = mockCreditCards.reduce((sum, card) => sum + (card.liability?.balance || 0), 0)
-  const upcomingPayments = mockCreditCards.filter((card) => {
-    const dueDate = new Date(card.liability?.next_payment_due_date || "")
+  const { data: session } = useSession()
+  const [cards, setCards] = useState<CreditCard[]>([])
+  const [paymentStats, setPaymentStats] = useState<PaymentStats>({
+    total_amount: 0,
+    successful_payments: 0,
+    failed_payments: 0,
+    pending_payments: 0,
+    recent_payments_count: 0
+  })
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!session?.user?.id) return
+      
+      try {
+        setIsLoading(true)
+        const [fetchedCards, fetchedStats] = await Promise.all([
+          cardsAPI.getCreditCards(),
+          paymentsAPI.getPaymentStats()
+        ])
+        setCards(fetchedCards)
+        setPaymentStats(fetchedStats)
+      } catch (error) {
+        console.error('Failed to fetch stats data:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [session?.user?.id])
+
+  // Calculate stats from the fetched data
+  const totalBalance = cards.reduce((sum, card) => {
+    const balance = card.method_card.liability?.balance || card.method_card.balance || 0
+    return sum + balance
+  }, 0)
+
+  const upcomingPayments = cards.filter((card) => {
+    const dueDate = card.method_card.liability?.next_payment_due_date
+    if (!dueDate) return false
+    
+    const dueDateObj = new Date(dueDate)
     const today = new Date()
-    const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    const daysUntilDue = Math.ceil((dueDateObj.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     return daysUntilDue <= 7 && daysUntilDue >= 0
   }).length
-  const recentPayments = mockPayments.filter((payment) => payment.status === "sent").length
 
   const stats = [
     {
       title: "Total Balance",
-      value: `$${totalBalance.toLocaleString()}`,
+      value: isLoading ? "-" : `$${totalBalance.toLocaleString()}`,
       description: "Across all credit cards",
       icon: (
         <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -31,7 +75,7 @@ export function QuickStats() {
     },
     {
       title: "Upcoming Payments",
-      value: upcomingPayments.toString(),
+      value: isLoading ? "-" : upcomingPayments.toString(),
       description: "Due within 7 days",
       icon: (
         <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -46,8 +90,8 @@ export function QuickStats() {
     },
     {
       title: "Recent Payments",
-      value: recentPayments.toString(),
-      description: "Completed this month",
+      value: isLoading ? "-" : paymentStats.recent_payments_count.toString(),
+      description: "Last 30 days",
       icon: (
         <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -61,7 +105,7 @@ export function QuickStats() {
     },
     {
       title: "Active Cards",
-      value: mockCreditCards.length.toString(),
+      value: isLoading ? "-" : cards.length.toString(),
       description: "Connected accounts",
       icon: (
         <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -82,7 +126,9 @@ export function QuickStats() {
         <Card key={index} className="bg-card border border-border">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
-            <div className="text-muted-foreground">{stat.icon}</div>
+            <div className="text-muted-foreground">
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : stat.icon}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-card-foreground">{stat.value}</div>

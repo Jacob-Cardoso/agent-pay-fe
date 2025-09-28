@@ -5,17 +5,23 @@ declare module "next-auth" {
     user: {
       id: string
       methodAccountId?: string
+      phoneNumber?: string
+      needsPhoneNumber?: boolean
     } & DefaultSession["user"]
   }
 
   interface User {
     id: string
     methodAccountId?: string
+    phoneNumber?: string
+    needsPhoneNumber?: boolean
   }
 }
 
 declare module "next-auth/jwt" {
   interface JWT {
     methodAccountId?: string
+    phoneNumber?: string
+    needsPhoneNumber?: boolean
   }
 }

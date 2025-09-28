@@ -1,22 +1,62 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PaymentItem } from "./payment-item"
-import { mockPayments } from "@/lib/mock-data"
+import { paymentsAPI, type Payment, type PaymentStats } from "@/lib/api/payments"
 import { useToast } from "@/hooks/use-toast"
+import { Loader2 } from "lucide-react"
 
 export function PaymentHistory() {
+  const { data: session } = useSession()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [sortBy, setSortBy] = useState("date-desc")
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [paymentStats, setPaymentStats] = useState<PaymentStats>({
+    total_amount: 0,
+    successful_payments: 0,
+    failed_payments: 0,
+    pending_payments: 0,
+    recent_payments_count: 0
+  })
+  const [isLoading, setIsLoading] = useState(true)
   const { toast } = useToast()
 
+  // Fetch payment data
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!session?.user?.id) return
+      
+      try {
+        setIsLoading(true)
+        const [fetchedPayments, fetchedStats] = await Promise.all([
+          paymentsAPI.getPaymentHistory(),
+          paymentsAPI.getPaymentStats()
+        ])
+        setPayments(fetchedPayments)
+        setPaymentStats(fetchedStats)
+      } catch (error) {
+        console.error('Failed to fetch payment data:', error)
+        toast({
+          title: "Error",
+          description: "Failed to load payment history. Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [session?.user?.id, toast])
+
   // Filter and sort payments
-  const filteredPayments = mockPayments
+  const filteredPayments = payments
     .filter((payment) => {
       const matchesSearch = payment.description.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesStatus = statusFilter === "all" || payment.status === statusFilter
@@ -38,7 +78,7 @@ export function PaymentHistory() {
     })
 
   const getStatusStats = () => {
-    const stats = mockPayments.reduce(
+    const stats = payments.reduce(
       (acc, payment) => {
         acc[payment.status] = (acc[payment.status] || 0) + 1
         return acc
@@ -49,7 +89,7 @@ export function PaymentHistory() {
   }
 
   const statusStats = getStatusStats()
-  const totalAmount = mockPayments.reduce((sum, payment) => sum + payment.amount, 0)
+  const totalAmount = paymentStats.total_amount
 
   const handleExport = () => {
     toast({
@@ -81,7 +121,9 @@ export function PaymentHistory() {
             </svg>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-card-foreground">${totalAmount.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-card-foreground">
+              {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : `$${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            </div>
             <p className="text-xs text-muted-foreground">All time</p>
           </CardContent>
         </Card>
@@ -99,7 +141,9 @@ export function PaymentHistory() {
             </svg>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-card-foreground">{statusStats.sent || 0}</div>
+            <div className="text-2xl font-bold text-card-foreground">
+              {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : (statusStats.sent || 0)}
+            </div>
             <p className="text-xs text-muted-foreground">Successful payments</p>
           </CardContent>
         </Card>

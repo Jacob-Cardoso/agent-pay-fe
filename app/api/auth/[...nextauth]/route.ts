@@ -20,35 +20,57 @@ export const authOptions: AuthOptions = {
           return null
         }
 
-        // TODO: Replace with actual user authentication logic
-        // For now, we'll simulate authentication
         try {
-          // In production, verify credentials against your database
-          const user = {
-            id: `user_${Math.random().toString(36).substr(2, 9)}`,
-            email: credentials.email,
-            name: credentials.email.split('@')[0],
-            methodAccountId: null
+          // Call our FastAPI backend for authentication
+          const API_BASE_URL = process.env.NEXT_PUBLIC_FASTAPI_URL || 'http://localhost:8000';
+          const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: credentials.email,
+              password: credentials.password,
+            }),
+          });
+
+          if (!response.ok) {
+            console.error('Authentication failed:', response.status);
+            return null;
           }
 
-          return user
+          const authData = await response.json();
+          
+          if (authData.access_token && authData.user) {
+            return {
+              id: authData.user.id,
+              email: authData.user.email,
+              name: authData.user.full_name || authData.user.email,
+              methodAccountId: authData.user.method_account_id,
+              phoneNumber: authData.user.phone_number,
+              accessToken: authData.access_token,
+            }
+          }
+
+          return null;
         } catch (error) {
-          console.error("Auth error:", error)
-          return null
+          console.error('Authentication error:', error);
+          return null;
         }
-      }
-    })
+      },
+    }),
   ],
   callbacks: {
     async jwt({ token, user, account }) {
       // Persist the OAuth access_token and user data to the token right after signin
       if (user) {
         token.methodAccountId = user.methodAccountId || null
+        token.phoneNumber = user.phoneNumber || null
         
         // Create Method account on first sign in
         if (!user.methodAccountId) {
           try {
-            const methodAccount = await createMethodAccount(user.email!, user.name!)
+            const methodAccount = await createMethodAccount(user.email!, user.name!, user.phoneNumber)
             token.methodAccountId = methodAccount.id
             // In production, save this to your database
           } catch (error) {
@@ -63,11 +85,19 @@ export const authOptions: AuthOptions = {
       if (session.user) {
         session.user.id = token.sub!
         session.user.methodAccountId = token.methodAccountId as string
+        session.user.phoneNumber = token.phoneNumber as string
       }
       return session
     },
     async signIn({ user, account, profile }) {
-      // Allow sign in
+      // For Google OAuth, check if this is first time login
+      if (account?.provider === "google" && profile) {
+        // If no phone number from Google, we'll need to collect it
+        if (!profile.phone) {
+          // Store a flag to show phone collection modal
+          user.needsPhoneNumber = true
+        }
+      }
       return true
     }
   },
@@ -83,8 +113,9 @@ export const authOptions: AuthOptions = {
 }
 
 // Mock function to create Method account - replace with actual Method API call
-async function createMethodAccount(email: string, name: string) {
+async function createMethodAccount(email: string, name: string, phoneNumber?: string) {
   // TODO: Replace with actual Method API integration
+  console.log('Creating Method account for:', { email, name, phoneNumber })
   return {
     id: `method_${Math.random().toString(36).substr(2, 9)}`,
     status: "active"

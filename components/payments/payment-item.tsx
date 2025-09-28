@@ -2,11 +2,11 @@
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import type { MethodPayment } from "@/lib/method-api"
+import type { Payment } from "@/lib/api/payments"
 import { useToast } from "@/hooks/use-toast"
 
 interface PaymentItemProps {
-  payment: MethodPayment
+  payment: Payment
 }
 
 export function PaymentItem({ payment }: PaymentItemProps) {
@@ -179,7 +179,7 @@ export function PaymentItem({ payment }: PaymentItemProps) {
         </div>
         <div className="flex items-center space-x-4">
           <div className="text-right">
-            <p className="text-lg font-semibold text-card-foreground">${payment.amount.toLocaleString()}</p>
+            <p className="text-lg font-semibold text-card-foreground">${(payment.amount / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             <p className="text-xs text-muted-foreground">ID: {payment.id.slice(-8)}</p>
           </div>
           <div className="flex items-center space-x-2">
